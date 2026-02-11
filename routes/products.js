@@ -1167,10 +1167,31 @@ let data = [
 router.get('/', function (req, res, next) {
   let queries = req.query;
   let titleQ = queries.title ? queries.title : '';
-  let minPrice = queries.minPrice ? queries.minPrice : 0;
-  let maxPrice = queries.maxPrice ? queries.maxPrice : 1E6;
-  let page = queries.page ? queries.page : 1;
-  let limit = queries.limit ? queries.limit : 10;
+  let minPrice = queries.minPrice ? parseFloat(queries.minPrice) : 0;
+  let maxPrice = queries.maxPrice ? parseFloat(queries.maxPrice) : 1E6;
+  let page = queries.page ? parseInt(queries.page) : 1;
+  let limit = queries.limit ? parseInt(queries.limit) : 10;
+  
+  // Validate page và limit phải là số nguyên dương
+  if (page < 1 || !Number.isInteger(page)) {
+    return res.status(400).send({
+      "message": "page must be a positive integer"
+    });
+  }
+  
+  if (limit < 1 || !Number.isInteger(limit)) {
+    return res.status(400).send({
+      "message": "limit must be a positive integer"
+    });
+  }
+  
+  // Validate maxPrice phải >= minPrice
+  if (maxPrice < minPrice) {
+    return res.status(400).send({
+      "message": "maxPrice must be greater than or equal to minPrice"
+    });
+  }
+  
   console.log(queries);
   let result = data.filter(
     function (e) {
@@ -1181,6 +1202,22 @@ router.get('/', function (req, res, next) {
   result = result.splice(limit * (page - 1), limit)
   res.send(result);
 });
+//get by slug
+router.get('/slug/:slug', function (req, res, next) {
+  let result = data.find(
+    function (e) {
+      return e.slug === req.params.slug && (!e.isDeleted);
+    }
+  )
+  if (result) {
+    res.send(result);
+  } else {
+    res.status(404).send({
+      "message": "slug not found"
+    });
+  }
+});
+
 //get by ID
 router.get('/:id', function (req, res, next) {
   let result = data.find(
@@ -1199,11 +1236,50 @@ router.get('/:id', function (req, res, next) {
 
 
 router.post('/', function (req, res, next) {
+  // Validate: các trường không được để trống
+  if (!req.body.title || req.body.title.trim() === '') {
+    return res.status(400).send({
+      "message": "title is required and cannot be empty"
+    });
+  }
+  
+  if (!req.body.price && req.body.price !== 0) {
+    return res.status(400).send({
+      "message": "price is required"
+    });
+  }
+  
+  if (!req.body.description || req.body.description.trim() === '') {
+    return res.status(400).send({
+      "message": "description is required and cannot be empty"
+    });
+  }
+  
+  if (!req.body.category) {
+    return res.status(400).send({
+      "message": "category is required"
+    });
+  }
+  
+  if (!req.body.images || !Array.isArray(req.body.images) || req.body.images.length === 0) {
+    return res.status(400).send({
+      "message": "images is required and must be a non-empty array"
+    });
+  }
+  
+  // Validate: price phải là số
+  let price = parseFloat(req.body.price);
+  if (isNaN(price)) {
+    return res.status(400).send({
+      "message": "price must be a valid number"
+    });
+  }
+  
   let newObj = {
     id: (getMaxID(data) + 1) + '',
     title: req.body.title,
     slug: ConvertTitleToSlug(req.body.title),
-    price: req.body.price,
+    price: price,
     description: req.body.description,
     category: req.body.category,
     images: req.body.images,
